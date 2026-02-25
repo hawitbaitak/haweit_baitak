@@ -516,13 +516,11 @@
     <script type="module">
         const { createApp, ref, computed, onMounted, watchEffect, nextTick } = Vue;
 
-        // 🔥 تم تحديث الرابط ليتوافق مع السكريبت الجديد (v7)
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxWUlAkTyJcnfZ7BzqbGp-fodtm7Mgrc1__nnEjWLNTAxf5CMfpgQG7JOV0JrgOqrNt/exec";
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzpjCLgmN9nSJlHsTbrLPE33I76hJAF3boosakQImQ1IGo_mb8SdHJx-OjQ4BB0AD1X/exec";
 
         createApp({
             setup() {
                 const activeTab = ref('create');
-                // 🔥 تم تغيير مسار الحفظ المحلي إلى v7 لتجنب تعارض البيانات القديمة
                 const orders = ref(JSON.parse(localStorage.getItem('hwayt_orders_v7') || '[]'));
                 const loading = ref(false);
                 const syncLoading = ref(false);
@@ -642,7 +640,6 @@
                     };
 
                     try {
-                        // 1. الحفظ محلياً أولاً لضمان عدم ضياع البيانات
                         if (editingOrder.value) {
                             const idx = orders.value.findIndex(o => o.orderId === editingOrder.value.orderId);
                             if (idx !== -1) orders.value[idx] = payload;
@@ -651,30 +648,27 @@
                         }
                         localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
 
-                        // 2. الإرسال للسحاب بطريقة تتخطى الـ CORS
+                        // 🔥 تعديل المزامنة ليتخطى حظر جوجل (بدون no-cors عشان يرد بنجاح)
                         const response = await fetch(GOOGLE_SCRIPT_URL, { 
                             method: 'POST', 
-                            headers: {
-                                // استخدام text/plain يمنع المتصفح من عمل Preflight Request اللي بيترفض من جوجل
-                                'Content-Type': 'text/plain;charset=utf-8'
-                            },
+                            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                             body: JSON.stringify(payload) 
                         });
-
-                        // 3. التأكد من نجاح العملية
+                        
+                        // عشان نتأكد إن الحفظ حصل فعلاً ومفيش مشاكل
                         const result = await response.json();
                         
                         if (result.result === "success") {
-                            showNotify(`تم حفظ الطلب: ${orderId} في السحاب بنجاح`);
+                            showNotify(`تم الحفظ بنجاح في النظام والسحاب`);
                             cancelEdit();
                             setTab('archive');
                         } else {
-                            throw new Error(result.message || "خطأ من السيرفر");
+                            throw new Error("السيرفر رفض الحفظ");
                         }
 
                     } catch (e) {
                         console.error("Cloud Error:", e);
-                        showNotify("تم الحفظ محلياً.. فشل الاتصال بالسحاب! تأكد من الرابط.", "error");
+                        showNotify("تم الحفظ محلياً فقط! فشل الوصول للسحاب", "error");
                     } finally { 
                         isSaving.value = false; 
                     }
@@ -682,11 +676,9 @@
 
                 const deleteOrder = async (order) => {
                     if (confirm(`حذف الطلب ${order.orderId} نهائياً؟`)) {
-                        // الحذف محلياً
                         orders.value = orders.value.filter(o => o.orderId !== order.orderId);
                         localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
                         
-                        // الحذف سحابياً
                         try {
                             await fetch(GOOGLE_SCRIPT_URL, { 
                                 method: 'POST', 
@@ -699,6 +691,7 @@
                         }
                     }
                 };
+                
                 const editOrder = (order) => {
                     editingOrder.value = order;
                     orderForm.value = {
@@ -733,8 +726,6 @@
                     };
                 };
 
-                
-
                 const syncFromSheet = async () => {
                     syncLoading.value = true;
                     try {
@@ -743,15 +734,21 @@
                         
                         const grouped = {};
                         result.orders.forEach(row => {
-                            const oid = row['رقم الطلب'];
+                            const oid = row['رقم الطلب'] || row['رقم الطلب '] || row['رقم الطلب'];
                             if (!oid) return;
                             if (!grouped[oid]) {
                                 grouped[oid] = {
                                     orderId: oid,
                                     managerCode: oid.split('-')[0] || 'XX',
-                                    isPaid: row['حالة الدفع'] === 'تم الدفع',
-                                    receiptImage: row['صورة الإيصال'] || null, 
-                                    client: { name: row['العميل'] || '', city: row['المدينة'] || '', phone: row['الجوال'] || '', address: row['العنوان بالتفصيل'] || '' },
+                                    // 🔥 تعديل القراءة عشان لو الشيت فيه مسافات بالغلط يقدر يقراهم
+                                    isPaid: row['حالة الدفع'] === 'تم الدفع' || row['حالة الدفع '] === 'تم الدفع',
+                                    receiptImage: row['صورة الإيصال'] || row['صورة الايصال'] || row['صورة الإيصال '] || null, 
+                                    client: { 
+                                        name: row['العميل'] || '', 
+                                        city: row['المدينة'] || '', 
+                                        phone: row['الجوال'] || '', 
+                                        address: row['العنوان بالتفصيل'] || row['العنوان بالتفصيل '] || row['العنوان'] || '' 
+                                    },
                                     products: [], totalAmount: 0, subTotal: 0, discountRate: 0,
                                     timestamp: row['التاريخ'] || new Date().toISOString()
                                 };
@@ -898,4 +895,3 @@
     </script>
 </body>
 </html>
-
