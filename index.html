@@ -516,19 +516,20 @@
     <script type="module">
         const { createApp, ref, computed, onMounted, watchEffect, nextTick } = Vue;
 
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwrE5iCOppeiMp3OIrNl1yhIMTlcbng9Ab9BlOiXkMekm3A8Ee-Ccx-xNJdeT2ByAp7/exec";
+        // 🔥 تم تحديث الرابط ليتوافق مع السكريبت الجديد (v7)
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyp2wMLw9NzjzIHjZV9yJok_MEEBshuQ2enudy4o1WEx5kHTS23pTKekZd_aGwrtKbq/exec";
 
         createApp({
             setup() {
                 const activeTab = ref('create');
-                const orders = ref(JSON.parse(localStorage.getItem('hwayt_orders_v4') || '[]'));
+                // 🔥 تم تغيير مسار الحفظ المحلي إلى v7 لتجنب تعارض البيانات القديمة
+                const orders = ref(JSON.parse(localStorage.getItem('hwayt_orders_v7') || '[]'));
                 const loading = ref(false);
                 const syncLoading = ref(false);
                 const notification = ref(null);
                 const searchQuery = ref('');
                 const filterDate = ref(new Date().toISOString().split('T')[0]);
                 
-                // المتغير الجديد الخاص بفلتر حالة الدفع
                 const filterPaymentStatus = ref('all'); 
                 
                 const isSaving = ref(false);
@@ -647,7 +648,7 @@
                         } else {
                             orders.value.unshift(payload);
                         }
-                        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
+                        localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
 
                         fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
 
@@ -696,7 +697,7 @@
                 const deleteOrder = (order) => {
                     if (confirm(`حذف الطلب ${order.orderId} نهائياً؟`)) {
                         orders.value = orders.value.filter(o => o.orderId !== order.orderId);
-                        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
+                        localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
                         fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', orderId: order.orderId, target: 'orders' }) });
                         showNotify("تم الحذف بنجاح");
                     }
@@ -734,8 +735,8 @@
                             grouped[oid].totalAmount += (p.price * p.count);
                             grouped[oid].subTotal = grouped[oid].totalAmount;
                         });
-                        orders.value = Object.values(grouped);
-                        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
+                        orders.value = Object.values(grouped).sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                        localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
                         showNotify("تمت المزامنة الكاملة من السحاب");
                     } catch (e) {
                         showNotify("خطأ في المزامنة السحابية", "error");
@@ -832,7 +833,6 @@
                         .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
                 });
 
-                // التعديل الجديد: تطبيق فلتر حالة الدفع إلى جانب فلتر التاريخ
                 const filteredByDateOrders = computed(() => {
                     return orders.value.filter(o => {
                         const dateMatch = (o.timestamp || "").split('T')[0] === filterDate.value;
@@ -866,4 +866,3 @@
     </script>
 </body>
 </html>
-
