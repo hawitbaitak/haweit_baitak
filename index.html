@@ -121,20 +121,34 @@
             <section v-if="activeTab === 'create'" class="bg-white p-8 rounded-3xl shadow-sm border animate-in">
                 <form @submit.prevent="saveOrder" class="space-y-8">
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 bg-blue-50/50 p-8 rounded-3xl mb-4 border border-blue-100">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 bg-blue-50/50 p-8 rounded-3xl mb-4 border border-blue-100">
                         <div class="col-span-full font-black text-[#142952] flex items-center gap-2 mb-2 text-lg">
                             <i data-lucide="settings"></i> إعدادات الطلب والدفع
                         </div>
-                        <div class="space-y-1 lg:col-span-1">
+                        <div class="space-y-1">
                             <label class="text-[11px] font-black text-gray-400 mr-2 uppercase">رمز المسؤول</label>
                             <input v-model="orderForm.managerCode" maxlength="2" required class="w-full p-3.5 border-2 border-transparent bg-white rounded-2xl shadow-sm focus:border-blue-500 outline-none font-bold uppercase tracking-widest text-center" placeholder="مثال: AB">
                         </div>
-                        <div class="space-y-1 lg:col-span-1">
-                            <label class="text-[11px] font-black text-gray-400 mr-2 uppercase">نسبة الخصم (%)</label>
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-black text-gray-400 mr-2 uppercase">الخصم (%)</label>
                             <input v-model.number="orderForm.discountRate" type="number" min="0" max="100" class="w-full p-3.5 border-2 border-transparent bg-white rounded-2xl shadow-sm focus:border-blue-500 outline-none font-bold text-center text-red-500" placeholder="0">
                         </div>
+                        <div class="space-y-1">
+                            <label class="text-[11px] font-black text-gray-400 mr-2 uppercase">حالة الدفع</label>
+                            <div class="flex items-center gap-3 mt-2 h-[46px]">
+                                <div class="relative inline-block w-12 h-6 cursor-pointer rounded-full transition-colors duration-300 shadow-inner"
+                                     :class="orderForm.isPaid ? 'bg-green-500' : 'bg-gray-300'"
+                                     @click="orderForm.isPaid = !orderForm.isPaid">
+                                    <div class="absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 shadow"
+                                         :class="orderForm.isPaid ? 'left-1' : 'right-1'"></div>
+                                </div>
+                                <span class="text-sm font-black" :class="orderForm.isPaid ? 'text-green-600' : 'text-gray-500'">
+                                    {{ orderForm.isPaid ? 'مدفوع' : 'غير مدفوع' }}
+                                </span>
+                            </div>
+                        </div>
                         <div class="space-y-1 lg:col-span-2">
-                            <label class="text-[11px] font-black text-gray-400 mr-2 uppercase">رفع إيصال الدفع (اختياري)</label>
+                            <label class="text-[11px] font-black text-gray-400 mr-2 uppercase">رفع الإيصال (اختياري)</label>
                             <div class="flex items-center gap-4">
                                 <input type="file" ref="receiptInput" accept="image/*" @change="handleReceiptUpload" class="flex-1 w-full p-2.5 border-2 border-transparent bg-white rounded-2xl shadow-sm focus:border-blue-500 outline-none font-bold text-sm">
                                 <div v-if="orderForm.receiptImage" class="w-12 h-12 rounded-xl overflow-hidden shadow-sm border border-gray-200 shrink-0">
@@ -254,7 +268,8 @@
                             <tr v-for="order in filteredOrders" :key="order.id" class="border-b hover:bg-blue-50/50 transition-all">
                                 <td class="p-6 font-mono font-black text-blue-700 uppercase">
                                     {{ order.orderId }}
-                                    <span v-if="order.receiptImage" class="block mt-1 bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded w-fit">مدفوع</span>
+                                    <span v-if="order.isPaid" class="block mt-1 bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded w-fit">مدفوع</span>
+                                    <span v-else class="block mt-1 bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded w-fit">غير مدفوع</span>
                                 </td>
                                 <td class="p-6 text-xs text-gray-500 font-bold">{{ formatDate(order.timestamp) }}</td>
                                 <td class="p-6 font-black text-gray-800">{{ order.client.name }}</td>
@@ -416,7 +431,8 @@
                                 <div class="flex gap-3">
                                     <div class="w-12 h-12 bg-gray-50 border rounded-lg flex items-center justify-center p-1 shrink-0">
                                         <img :src="'products/' + p.name + '.webp'" 
-                                             @error="handleImageFallback($event, p.name)"
+                                             :data-name="p.name"
+                                             onerror="if(!this.dataset.j){this.dataset.j=1; this.src='products/'+this.dataset.name+'.jpg';}else if(!this.dataset.p){this.dataset.p=1; this.src='products/'+this.dataset.name+'.png';}else{this.onerror=null;this.src='logo1.png';}"
                                              class="w-full h-full object-contain rounded-md">
                                     </div>
                                     <div class="space-y-1 flex-1">
@@ -456,9 +472,12 @@
                     <div class="flex justify-between items-center bg-[#142952] text-white p-3 rounded-xl font-black text-lg shadow-md mt-2 relative">
                         <div class="flex items-center gap-3">
                             <span>إجمالي الطلب</span>
-                            <div v-if="invoice.receiptImage" class="flex items-center gap-1.5 bg-[#22c55e]/20 text-[#4ade80] px-2 py-1 rounded-lg border border-[#4ade80]/30">
+                            <div v-if="invoice.isPaid" class="flex items-center gap-1.5 bg-green-100 text-green-700 px-2 py-1 rounded-lg border border-green-300">
                                 <span class="text-[10px] font-black">✓ تم الدفع</span>
-                                <img :src="invoice.receiptImage" class="w-6 h-6 rounded border border-[#4ade80] object-cover bg-white">
+                                <img v-if="invoice.receiptImage" :src="invoice.receiptImage" class="w-6 h-6 rounded border border-green-400 object-cover bg-white">
+                            </div>
+                            <div v-else class="flex items-center gap-1.5 bg-red-100 text-red-700 px-2 py-1 rounded-lg border border-red-300">
+                                <span class="text-[10px] font-black">✗ غير مدفوع</span>
                             </div>
                         </div>
                         <span>SAR {{ invoice.totalAmount }}</span>
@@ -501,7 +520,7 @@
                     11: 149, 12: 225, 13: 225, 14: 126, 15: 166, 16: 235, 17: 199, 18: 218, 19: 299, 20: 299,
                     21: 344, 22: 344, 23: 344, 24: 344, 25: 288, 26: 259, 27: 219, 28: 288, 29: 219, 30: 259,
                     34: 219, 35: 299, 36: 219, 37: 219, 38: 219, 39: 288, 40: 199, 41: 199, 42: 199, 43: 199,
-                    44: 249, 47: 288, 48: 288, 49: 288, 51: 288
+                    44: 249, 46: 299, 47: 288, 48: 288, 49: 288, 51: 288
                 };
                 const defaultDesigns = Array.from({length: 51}, (_, i) => ({
                     id: `design-${i+1}`,
@@ -514,7 +533,8 @@
                 const orderForm = ref({
                     managerCode: '',
                     discountRate: 0,
-                    receiptImage: null, // تم إضافة مسار صورة الإيصال
+                    isPaid: false, // تم إضافة متغير حالة الدفع
+                    receiptImage: null,
                     client: { name: '', city: '', address: '', phone: '' },
                     products: [{ id: Date.now(), productId: '', name: '', nationalAddress: '', villaNo: '', customName: '', notes: '', count: 1, color: 'silver', price: 0, basePrice: 0 }]
                 });
@@ -552,21 +572,6 @@
                     }
                 };
 
-                const handleImageFallback = (e, productName) => {
-                    const img = e.target;
-                    if (!img.dataset.triedJpg) {
-                        img.dataset.triedJpg = 'true';
-                        img.src = 'products/' + productName + '.jpg';
-                    } else if (!img.dataset.triedPng) {
-                        img.dataset.triedPng = 'true';
-                        img.src = 'products/' + productName + '.png';
-                    } else {
-                        img.onerror = null; 
-                        img.src = 'logo1.png';
-                    }
-                };
-
-                // التعديل الجديد: معالجة ضغط صورة الإيصال لضمان توافقها مع جوجل شيت
                 const handleReceiptUpload = (e) => {
                     const file = e.target.files[0];
                     if (!file) return;
@@ -575,15 +580,16 @@
                         const img = new Image();
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
-                            const MAX_WIDTH = 400; // تصغير الصورة لتقليل حجم الداتا
+                            const MAX_WIDTH = 400; 
                             let scaleSize = 1;
                             if (img.width > MAX_WIDTH) scaleSize = MAX_WIDTH / img.width;
                             canvas.width = img.width * scaleSize;
                             canvas.height = img.height * scaleSize;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                            // ضغط الصورة بنسبة 50% لضمان حفظها في الشيت
                             orderForm.value.receiptImage = canvas.toDataURL('image/jpeg', 0.5); 
+                            // قلب حالة الدفع لتصبح "تم الدفع" تلقائياً بمجرد رفع الإيصال
+                            orderForm.value.isPaid = true;
                         };
                         img.src = event.target.result;
                     };
@@ -603,7 +609,8 @@
                         orderId,
                         managerCode: orderForm.value.managerCode,
                         discountRate: orderForm.value.discountRate || 0,
-                        receiptImage: orderForm.value.receiptImage || "", // حفظ الإيصال
+                        isPaid: orderForm.value.isPaid,
+                        receiptImage: orderForm.value.receiptImage || "", 
                         subTotal: calculateSubTotal(),
                         client: JSON.parse(JSON.stringify(orderForm.value.client)),
                         products: JSON.parse(JSON.stringify(orderForm.value.products)),
@@ -637,7 +644,8 @@
                     orderForm.value = {
                         managerCode: order.managerCode || order.orderId.split('-')[0] || '',
                         discountRate: order.discountRate || 0,
-                        receiptImage: order.receiptImage || null, // جلب الإيصال عند التعديل
+                        isPaid: order.isPaid || false,
+                        receiptImage: order.receiptImage || null,
                         client: JSON.parse(JSON.stringify(order.client)),
                         products: JSON.parse(JSON.stringify(order.products))
                     };
@@ -649,10 +657,11 @@
 
                 const cancelEdit = () => {
                     editingOrder.value = null;
-                    if (receiptInput.value) receiptInput.value.value = ''; // تفريغ حقل رفع الملف
+                    if (receiptInput.value) receiptInput.value.value = ''; 
                     orderForm.value = {
                         managerCode: '',
                         discountRate: 0,
+                        isPaid: false,
                         receiptImage: null,
                         client: { name: '', city: '', address: '', phone: '' },
                         products: [{ id: Date.now(), productId: '', name: '', nationalAddress: '', villaNo: '', customName: '', notes: '', count: 1, color: 'silver', price: 0, basePrice: 0 }]
@@ -682,7 +691,8 @@
                                 grouped[oid] = {
                                     orderId: oid,
                                     managerCode: oid.split('-')[0] || 'XX',
-                                    receiptImage: row['صورة الإيصال'] || null, // جلب صورة الإيصال من السحاب
+                                    isPaid: row['حالة الدفع'] === 'تم الدفع',
+                                    receiptImage: row['صورة الإيصال'] || null, 
                                     client: { name: row['العميل'], city: row['المدينة'], phone: row['الجوال'], address: row['العنوان بالتفصيل'] },
                                     products: [], totalAmount: 0, subTotal: 0, discountRate: 0,
                                     timestamp: row['التاريخ'] || new Date().toISOString()
@@ -811,7 +821,7 @@
                 return {
                     activeTab, orders, catalog, notification, searchQuery, filterDate, isSaving, syncLoading, loading,
                     orderForm, catalogForm, bulkList, editingOrder, receiptInput,
-                    addProductRow, removeProductRow, syncProductData, updatePrice, handleImageFallback, handleReceiptUpload, saveOrder, deleteOrder, editOrder, cancelEdit,
+                    addProductRow, removeProductRow, syncProductData, updatePrice, handleReceiptUpload, saveOrder, deleteOrder, editOrder, cancelEdit,
                     saveCatalogItem, deleteCatalogItem, viewInvoice, printBulk, downloadBulkPDF, downloadZIP, syncFromSheet, calculateTotal, calculateSubTotal,
                     filteredOrders, filteredByDateOrders, formatDate, formatDateLong, formatTime, setTab
                 };
