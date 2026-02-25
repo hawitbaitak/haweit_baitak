@@ -621,65 +621,44 @@
                 const calculateTotal = () => Math.round(calculateSubTotal() - calculateDiscount());
 
                 const saveOrder = async () => {
-    isSaving.value = true;
+                    isSaving.value = true;
+                    const mCode = (orderForm.value.managerCode || 'XX').toUpperCase().substring(0,2);
+                    const orderId = editingOrder.value ? editingOrder.value.orderId : (`${mCode}-` + Math.random().toString(36).substr(2, 6).toUpperCase());
+                    
+                    const payload = {
+                        orderId,
+                        managerCode: orderForm.value.managerCode,
+                        discountRate: orderForm.value.discountRate || 0,
+                        isPaid: orderForm.value.isPaid,
+                        receiptImage: orderForm.value.receiptImage || "", 
+                        subTotal: calculateSubTotal(),
+                        client: JSON.parse(JSON.stringify(orderForm.value.client)),
+                        products: JSON.parse(JSON.stringify(orderForm.value.products)),
+                        totalAmount: calculateTotal(),
+                        timestamp: editingOrder.value ? editingOrder.value.timestamp : new Date().toISOString(),
+                        action: editingOrder.value ? 'update' : 'create',
+                        target: 'orders'
+                    };
 
-    const mCode = (orderForm.value.managerCode || 'XX').toUpperCase().substring(0,2);
-    const orderId = editingOrder.value 
-        ? editingOrder.value.orderId 
-        : (`${mCode}-` + Math.random().toString(36).substr(2, 6).toUpperCase());
+                    try {
+                        if (editingOrder.value) {
+                            const idx = orders.value.findIndex(o => o.orderId === editingOrder.value.orderId);
+                            orders.value[idx] = payload;
+                        } else {
+                            orders.value.unshift(payload);
+                        }
+                        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
 
-    const payload = {
-        orderId,
-        managerCode: orderForm.value.managerCode,
-        discountRate: orderForm.value.discountRate || 0,
-        isPaid: orderForm.value.isPaid,
-        receiptImage: orderForm.value.receiptImage || "",
-        subTotal: calculateSubTotal(),
-        client: JSON.parse(JSON.stringify(orderForm.value.client)),
-        products: JSON.parse(JSON.stringify(orderForm.value.products)),
-        totalAmount: calculateTotal(),
-        timestamp: editingOrder.value 
-            ? editingOrder.value.timestamp 
-            : new Date().toISOString(),
-        action: editingOrder.value ? 'update' : 'create',
-        target: 'orders'
-    };
+                        fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
 
-    try {
+                        showNotify(`تم حفظ الطلب: ${orderId}`);
+                        cancelEdit();
+                        setTab('archive');
+                    } catch (e) {
+                        showNotify("حفظ محلي فقط (فشل السحاب)", "error");
+                    } finally { isSaving.value = false; }
+                };
 
-        // تحديث محلي
-        if (editingOrder.value) {
-            const idx = orders.value.findIndex(o => o.orderId === editingOrder.value.orderId);
-            orders.value[idx] = payload;
-        } else {
-            orders.value.unshift(payload);
-        }
-        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
-
-        // 🔥 الحفظ الحقيقي (بدون no-cors)
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-        });
-
-        const result = await response.json();
-
-        if (result.result !== "success") {
-            throw new Error("فشل الحفظ السحابي");
-        }
-
-        showNotify(`تم حفظ الطلب: ${orderId}`);
-        cancelEdit();
-        setTab('archive');
-
-    } catch (e) {
-        console.error(e);
-        showNotify("فشل الحفظ في السحاب", "error");
-    } finally {
-        isSaving.value = false;
-    }
-};
                 const editOrder = (order) => {
                     editingOrder.value = order;
                     orderForm.value = {
@@ -714,37 +693,14 @@
                     };
                 };
 
-                const deleteOrder = async (order) => {
-    if (!confirm(`حذف الطلب ${order.orderId} نهائياً؟`)) return;
-
-    try {
-
-        orders.value = orders.value.filter(o => o.orderId !== order.orderId);
-        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
-
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                action: 'delete',
-                orderId: order.orderId,
-                target: 'orders'
-            })
-        });
-
-        const result = await response.json();
-
-        if (result.result !== "success") {
-            throw new Error("فشل الحذف السحابي");
-        }
-
-        showNotify("تم الحذف بنجاح");
-
-    } catch (e) {
-        console.error(e);
-        showNotify("فشل الحذف من السحاب", "error");
-    }
-};
+                const deleteOrder = (order) => {
+                    if (confirm(`حذف الطلب ${order.orderId} نهائياً؟`)) {
+                        orders.value = orders.value.filter(o => o.orderId !== order.orderId);
+                        localStorage.setItem('hwayt_orders_v4', JSON.stringify(orders.value));
+                        fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', orderId: order.orderId, target: 'orders' }) });
+                        showNotify("تم الحذف بنجاح");
+                    }
+                };
 
                 const syncFromSheet = async () => {
                     syncLoading.value = true;
@@ -910,5 +866,4 @@
     </script>
 </body>
 </html>
-
 
