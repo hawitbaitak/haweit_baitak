@@ -517,7 +517,7 @@
         const { createApp, ref, computed, onMounted, watchEffect, nextTick } = Vue;
 
         // 🔥 تم تحديث الرابط ليتوافق مع السكريبت الجديد (v7)
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyp2wMLw9NzjzIHjZV9yJok_MEEBshuQ2enudy4o1WEx5kHTS23pTKekZd_aGwrtKbq/exec";
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxWUlAkTyJcnfZ7BzqbGp-fodtm7Mgrc1__nnEjWLNTAxf5CMfpgQG7JOV0JrgOqrNt/exec";
 
         createApp({
             setup() {
@@ -642,24 +642,63 @@
                     };
 
                     try {
+                        // 1. الحفظ محلياً أولاً لضمان عدم ضياع البيانات
                         if (editingOrder.value) {
                             const idx = orders.value.findIndex(o => o.orderId === editingOrder.value.orderId);
-                            orders.value[idx] = payload;
+                            if (idx !== -1) orders.value[idx] = payload;
                         } else {
                             orders.value.unshift(payload);
                         }
                         localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
 
-                        fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
+                        // 2. الإرسال للسحاب بطريقة تتخطى الـ CORS
+                        const response = await fetch(GOOGLE_SCRIPT_URL, { 
+                            method: 'POST', 
+                            headers: {
+                                // استخدام text/plain يمنع المتصفح من عمل Preflight Request اللي بيترفض من جوجل
+                                'Content-Type': 'text/plain;charset=utf-8'
+                            },
+                            body: JSON.stringify(payload) 
+                        });
 
-                        showNotify(`تم حفظ الطلب: ${orderId}`);
-                        cancelEdit();
-                        setTab('archive');
+                        // 3. التأكد من نجاح العملية
+                        const result = await response.json();
+                        
+                        if (result.result === "success") {
+                            showNotify(`تم حفظ الطلب: ${orderId} في السحاب بنجاح`);
+                            cancelEdit();
+                            setTab('archive');
+                        } else {
+                            throw new Error(result.message || "خطأ من السيرفر");
+                        }
+
                     } catch (e) {
-                        showNotify("حفظ محلي فقط (فشل السحاب)", "error");
-                    } finally { isSaving.value = false; }
+                        console.error("Cloud Error:", e);
+                        showNotify("تم الحفظ محلياً.. فشل الاتصال بالسحاب! تأكد من الرابط.", "error");
+                    } finally { 
+                        isSaving.value = false; 
+                    }
                 };
 
+                const deleteOrder = async (order) => {
+                    if (confirm(`حذف الطلب ${order.orderId} نهائياً؟`)) {
+                        // الحذف محلياً
+                        orders.value = orders.value.filter(o => o.orderId !== order.orderId);
+                        localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
+                        
+                        // الحذف سحابياً
+                        try {
+                            await fetch(GOOGLE_SCRIPT_URL, { 
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                                body: JSON.stringify({ action: 'delete', orderId: order.orderId, target: 'orders' }) 
+                            });
+                            showNotify("تم الحذف بنجاح من النظام والسحاب");
+                        } catch(e) {
+                            showNotify("تم الحذف محلياً فقط (يوجد مشكلة في السحاب)", "error");
+                        }
+                    }
+                };
                 const editOrder = (order) => {
                     editingOrder.value = order;
                     orderForm.value = {
@@ -694,14 +733,7 @@
                     };
                 };
 
-                const deleteOrder = (order) => {
-                    if (confirm(`حذف الطلب ${order.orderId} نهائياً؟`)) {
-                        orders.value = orders.value.filter(o => o.orderId !== order.orderId);
-                        localStorage.setItem('hwayt_orders_v7', JSON.stringify(orders.value));
-                        fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify({ action: 'delete', orderId: order.orderId, target: 'orders' }) });
-                        showNotify("تم الحذف بنجاح");
-                    }
-                };
+                
 
                 const syncFromSheet = async () => {
                     syncLoading.value = true;
@@ -866,3 +898,4 @@
     </script>
 </body>
 </html>
+
